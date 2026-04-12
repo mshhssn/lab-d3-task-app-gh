@@ -1,0 +1,16 @@
+# This Dockerfile is designed to create a simple Nginx-based web server that serves the contents of the `app/` directory. When you build and run this Docker image, it will start an Nginx server that listens on port 80 and serves the files you copied into the container. Make sure to build the Docker image using the command `docker build -t <image-name> .` from the directory containing this Dockerfile, and then run it with `docker run -p 8000:80 <image-name>` to access the application through your web browser at `http://localhost:8000`.
+
+# Use an official Nginx image as the base image. This image is based on Alpine Linux, which is a lightweight distribution.
+FROM nginx:alpine
+
+# Set the working directory to the default Nginx HTML directory. This is where Nginx serves files from. By setting the working directory here, we can easily copy our application files into this location.
+WORKDIR /usr/share/nginx/html
+
+# Copy the contents of the `app/` directory from the local machine to the working directory in the container. This will include all the files and subdirectories within `app/`. By doing this, we ensure that our application files are available in the container for Nginx to serve when it starts. The `COPY` command is a straightforward way to transfer files from the host machine to the container during the build process. Make sure that the `app/` directory contains the necessary files for your application, such as HTML, CSS, JavaScript, and any other assets that need to be served by Nginx. After this step, when the container is run, Nginx will serve the files from the `/usr/share/nginx/html` directory, which now contains the contents of your `app/` directory.
+COPY app/ .
+
+# The `EXPOSE` instruction informs Docker that the container listens on the specified network port at runtime. In this case, we are exposing port 80, which is the default port for HTTP traffic. This means that when the container is running, it will be able to receive incoming requests on port 80. However, it's important to note that `EXPOSE` does not actually publish the port to the host machine; it simply serves as documentation and a hint for users of the image. To make the port accessible from outside the container, you would need to use the `-p` flag when running the container (e.g., `docker run -p 8000:80 <image-name>`), which maps the container's port 80 to port 8000 on the host machine.
+EXPOSE 80
+
+# The `CMD` instruction specifies the command that will be executed when the container starts. In this case, we are telling the container to run the Nginx server in the foreground (i.e., without daemonizing). The `-g "daemon off;"` option is used to prevent Nginx from running as a background process, which is necessary for it to work properly within a Docker container. By keeping Nginx in the foreground, we ensure that the container remains active and can serve requests as long as Nginx is running. If Nginx were to run as a daemon, the container would exit immediately after starting, which is not desirable for a web server.
+CMD [ "nginx", "-g", "daemon off;" ]
