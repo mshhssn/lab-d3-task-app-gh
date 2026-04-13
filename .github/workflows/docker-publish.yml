@@ -37,11 +37,24 @@ jobs:
 # Danach wird überprüft, ob die erforderlichen Dateien für den Docker-Build und die Anwendung vorhanden sind. Es wird getestet, ob die Dockerfile sowie die Anwendungsdateien (index.html, style.css, app.js) existieren.
         - name: Verify required files
           run: |
-            test -f Dockerfile
-            test -f app/index.html
-            test -f app/style.css
-            test -f app/app.js
-      
+            echo "Checking for required files..."
+            missing_files=false
+           
+            for file in Dockerfile app/index.html app/style.css app/app.js; do
+              if [ ! -f "$file" ]; then
+                echo "Error: Required file '$file' is missing."
+                missing_files=true
+              else
+                echo "Found required file: $file"
+              fi
+            done
+            if [ "$missing_files" = true ]; then
+              echo "Error: One or more required files are missing."
+              exit 1
+            else
+              echo "All required files are present."
+            fi
+
 # Anschließend wird das Docker-Image mit dem Namen "lab-d3-task-app-dh:test-ci" gebaut. Das Image wird lokal erstellt und nicht gepusht, da es nur für die Tests verwendet wird.
         - name: Build Docker image
           run: docker build -t $TEST_IMAGE_NAME .
