@@ -16,7 +16,7 @@ jobs:
       contents: read
     
 # Die Schritte des Jobs umfassen das Auschecken des Repositorys.   
-      steps:
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
