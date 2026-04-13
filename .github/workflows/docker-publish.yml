@@ -1,0 +1,50 @@
+# Dieser Workflow baut und veröffentlicht ein Docker-Image auf Docker Hub. Der Workflow wird "docker-publish" genannt und ist so konfiguriert, dass er bei jedem Push auf den main-Branch oder manuell über die GitHub-Oberfläche ausgelöst werden kann.
+name: docker-publish
+
+# Der Workflow läuft nur bei Pushes auf main. Zusätzlich erlaubt workflow_dispatch einen manuellen Start über die GitHub-Oberfläche. GitHub dokumentiert sowohl Branch-Filter für push als auch workflow_dispatch für manuell auslösbare Workflows.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Der Workflow besteht aus einem Job namens "docker". Dieser Job läuft auf einem Ubuntu-Latest-Runner. Die Berechtigungen für den Job sind so eingestellt, dass er nur Lesezugriff auf die Repository-Inhalte hat.
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+# Die Schritte des Jobs umfassen das Auschecken des Repositorys.   
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+# Danach wird Docker Buildx eingerichtet, um die Erstellung von Docker-Images zu ermöglichen.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+# Anschließend erfolgt die Anmeldung bei Docker Hub mit den in den Repository-Geheimnissen gespeicherten Anmeldeinformationen.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+# Danach wird die Docker-Metadaten-Aktion verwendet, um die Tags und Labels für das Docker-Image zu extrahieren. Das Image wird mit dem Namen "mshhssn/lab-d3-task-app-dh" getaggt, wobei "latest" und ein SHA-Tag basierend auf dem Commit-SHA verwendet werden.
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: mshhssn/lab-d3-task-app-dh
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,18 @@
+# This workflow uses the first-interaction action to greet users on their first issue or pull request. The workflow is named "Greetings" and is triggered on the pull_request_target and issues events. The job runs on an Ubuntu-latest runner and has permissions to write to issues and pull requests. The steps include using the first-interaction action with the GITHUB_TOKEN secret to post a message when a user creates their first issue or pull request. The messages can be customized in the workflow file.
+
+name: Greetings
+
+on: [pull_request_target, issues]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+    - uses: actions/first-interaction@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        issue-message: "Message that will be displayed on users' first issue"
+        pr-message: "Message that will be displayed on users' first pull request"
