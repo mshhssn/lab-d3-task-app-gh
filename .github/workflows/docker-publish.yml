@@ -1,5 +1,5 @@
 # Dieser Workflow ist für das Bauen und Veröffentlichen eines Docker-Images auf Docker Hub verantwortlich. Er wird ausgelöst, wenn es einen Push auf den main-Branch gibt oder manuell über die GitHub-Oberfläche gestartet wird. Der Workflow besteht aus zwei Jobs: "test" und "docker". Der "test"-Job baut und testet das Docker-Image, während der "docker"-Job das Image baut und auf Docker Hub veröffentlicht, wenn die Tests erfolgreich sind. Die Docker Hub Anmeldeinformationen und die Image-Namen werden als Umgebungsvariablen definiert, wobei die Anmeldeinformationen aus den Repository-Geheimnissen stammen. Der Workflow verwendet verschiedene Aktionen, um die erforderlichen Schritte für das Bauen, Testen und Veröffentlichen des Docker-Images durchzuführen.
-name: docker-publish
+name: Docker Publish
 
 # Der Workflow läuft nur bei Pushes auf main. Zusätzlich erlaubt workflow_dispatch einen manuellen Start über die GitHub-Oberfläche. GitHub dokumentiert sowohl Branch-Filter für push als auch workflow_dispatch für manuell auslösbare Workflows.
 on:
@@ -38,6 +38,7 @@ jobs:
         - name: Verify required files
           run: |
             echo "Checking for required files..."
+            echo
             missing_files=false
            
             for file in Dockerfile app/index.html app/style.css app/app.js; do
@@ -48,6 +49,12 @@ jobs:
                 echo "Found required file: $file"
               fi
             done
+
+            echo
+            echo "Contents of app directory:"
+            ls -l app || true
+            echo
+
             if [ "$missing_files" = true ]; then
               echo "Error: One or more required files are missing."
               exit 1
@@ -56,7 +63,7 @@ jobs:
             fi
 
 # Anschließend wird das Docker-Image mit dem Namen "lab-d3-task-app-dh:test-ci" gebaut. Das Image wird lokal erstellt und nicht gepusht, da es nur für die Tests verwendet wird.
-        - name: Build Docker image
+        - name: Build test docker image
           run: docker build -t $TEST_IMAGE_NAME .
 
 # Nach dem Build wird das Docker-Image getestet, indem ein Container gestartet und eine HTTP-Anfrage an die Anwendung gesendet wird. Es wird überprüft, ob die Anwendung ordnungsgemäß läuft und auf Port 8080 erreichbar ist. Wenn die HTTP-Anfrage fehlschlägt, werden die Logs des Containers angezeigt, um mögliche Fehler zu diagnostizieren. Am Ende werden der Test-Container und das Test-Image bereinigt, um Ressourcen freizugeben.
@@ -67,13 +74,22 @@ jobs:
         
 # Es wird eine HTTP-Anfrage an die Anwendung gesendet, um zu überprüfen, ob sie ordnungsgemäß läuft. Wenn die Anfrage fehlschlägt, wird der Workflow mit einem Fehlerstatus beendet.
         - name: HTTP check
-          run: curl -f http://localhost:8080 || exit 1
+          run: |
+            curl --fail --show-error --silent http://localhost:8080 > /tmp/task-app-response.html
+            echo "HTTP check passed."
+            echo "Response preview:"
+            head -n 20 /tmp/task-app-response.html || true
         
 
 # Wenn die HTTP-Anfrage fehlschlägt, werden die Logs des Test-Containers angezeigt, um mögliche Fehler zu diagnostizieren. Dies hilft dabei, Probleme mit der Anwendung oder dem Docker-Image zu identifizieren. Das "if: failure()" stellt sicher, dass dieser Schritt nur ausgeführt wird, wenn die vorherige HTTP-Anfrage fehlschlägt. Das "|| true" am Ende der Docker-Logs-Anzeige stellt sicher, dass der Workflow nicht mit einem Fehlerstatus endet, wenn das Anzeigen der Logs fehlschlägt (z.B. wenn der Container nicht existiert oder bereits gestoppt wurde). Dies gewährleistet, dass der Workflow nicht unnötig fehlschlägt, wenn es Probleme beim Anzeigen der Logs gibt, während gleichzeitig wichtige Informationen über den Fehler bereitgestellt werden.
         - name: Show container failure logs
           if: failure()
-          run: docker logs task-app-test-ctr || true
+          run: |
+            echo "Container list:"
+            docker ps -a || true
+            echo
+            echo "Container logs:"
+            docker logs task-app-test || true
 
 # Am Ende des Test-Jobs werden der Test-Container und das Test-Image bereinigt, um Ressourcen freizugeben. Das "if: always()" stellt sicher, dass dieser Schritt unabhängig vom Erfolg oder Misserfolg der vorherigen Schritte ausgeführt wird. Das "|| true" am Ende der Docker-Befehle stellt sicher, dass der Workflow nicht mit einem Fehlerstatus endet, wenn das Entfernen des Containers oder Images fehlschlägt (z.B. wenn sie bereits entfernt wurden). Dies gewährleistet, dass der Workflow nicht unnötig fehlschlägt, wenn die Bereinigung bereits erfolgt ist oder wenn es Probleme beim Entfernen gibt. Die Bereinigung ist wichtig, um sicherzustellen, dass keine unnötigen Ressourcen auf dem Runner verbleiben, die den Speicherplatz oder die Leistung beeinträchtigen könnten.
         - name: Cleanup test container and image
@@ -82,8 +98,8 @@ jobs:
             docker rm -f task-app-test-ctr || true
             docker rmi $TEST_IMAGE_NAME || true
 
-# Der "docker"-Job baut und veröffentlicht das Docker-Image auf Docker Hub, wenn die Tests erfolgreich sind. Er läuft auf einem Ubuntu-Latest-Runner und hat ebenfalls nur Lesezugriff auf die Repository-Inhalte. Der Job ist so konfiguriert, dass er erst ausgeführt wird, wenn der "test"-Job erfolgreich abgeschlossen wurde (needs: test). Die Schritte des Jobs umfassen das Auschecken des Repositorys, das Einrichten von Docker Buildx, die Anmeldung bei Docker Hub mit den gespeicherten Anmeldeinformationen, das Extrahieren der Docker-Metadaten für die Tags und Labels des Images sowie das Bauen und Pushen des Docker-Images auf Docker Hub. Das Image wird mit den entsprechenden Tags versehen, einschließlich "latest" und einem SHA-Tag basierend auf dem Commit-SHA. Die Verwendung von Docker Buildx ermöglicht es, die Erstellung von Docker-Images zu optimieren und verschiedene Plattformen zu unterstützen. Die Anmeldung bei Docker Hub stellt sicher, dass das Image erfolgreich gepusht werden kann, während die Extraktion der Docker-Metadaten sicherstellt, dass die Tags und Labels korrekt gesetzt werden, um die Versionierung und Identifikation des Images zu erleichtern. Am Ende wird das Docker-Image auf Docker Hub veröffentlicht, sodass es für die weitere Verwendung oder Bereitstellung verfügbar ist.
-  docker:
+# Der "docker-push"-Job baut und veröffentlicht das Docker-Image auf Docker Hub, wenn die Tests erfolgreich sind. Er läuft auf einem Ubuntu-Latest-Runner und hat ebenfalls nur Lesezugriff auf die Repository-Inhalte. Der Job ist so konfiguriert, dass er erst ausgeführt wird, wenn der "test"-Job erfolgreich abgeschlossen wurde (needs: test). Die Schritte des Jobs umfassen das Auschecken des Repositorys, das Einrichten von Docker Buildx, die Anmeldung bei Docker Hub mit den gespeicherten Anmeldeinformationen, das Extrahieren der Docker-Metadaten für die Tags und Labels des Images sowie das Bauen und Pushen des Docker-Images auf Docker Hub. Das Image wird mit den entsprechenden Tags versehen, einschließlich "latest" und einem SHA-Tag basierend auf dem Commit-SHA. Die Verwendung von Docker Buildx ermöglicht es, die Erstellung von Docker-Images zu optimieren und verschiedene Plattformen zu unterstützen. Die Anmeldung bei Docker Hub stellt sicher, dass das Image erfolgreich gepusht werden kann, während die Extraktion der Docker-Metadaten sicherstellt, dass die Tags und Labels korrekt gesetzt werden, um die Versionierung und Identifikation des Images zu erleichtern. Am Ende wird das Docker-Image auf Docker Hub veröffentlicht, sodass es für die weitere Verwendung oder Bereitstellung verfügbar ist.
+  docker-push:
     name: Build and publish Docker image
     runs-on: ubuntu-latest
     needs: test
