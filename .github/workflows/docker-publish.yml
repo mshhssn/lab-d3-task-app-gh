@@ -42,7 +42,6 @@ jobs:
             echo "Checking for required files..."
             echo
             missing_files=false
-           
             for file in Dockerfile app/index.html app/style.css app/app.js; do
               if [ ! -f "$file" ]; then
                 echo "Error: Required file '$file' is missing."
